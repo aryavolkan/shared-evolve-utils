@@ -458,7 +458,7 @@ def run_training(
     )
 
     try:
-        if not wait_for_metrics(metrics_path):
+        if not wait_for_metrics(metrics_path, timeout=120.0):
             process.kill()
             run.finish(exit_code=1)
             return

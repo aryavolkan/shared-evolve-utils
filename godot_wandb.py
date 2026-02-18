@@ -108,9 +108,12 @@ class SweepWorker:
         print(f"  Config written: {self.config_path}")
 
     def clear_metrics(self) -> None:
-        """Delete stale metrics file before a new run."""
+        """Delete stale metrics files before a new run."""
         if self.metrics_path.exists():
             self.metrics_path.unlink()
+        jsonl_path = Path(str(self.metrics_path) + "l")
+        if jsonl_path.exists():
+            jsonl_path.unlink()
 
     def cleanup(self) -> None:
         """Remove per-worker config and metrics files."""
@@ -261,56 +264,86 @@ def poll_metrics(
     max_stale: int = 60,
     log_keys: Optional[list[str]] = None,
 ) -> Optional[dict]:
-    """Poll metrics.json and log each new generation to W&B.
+    """Tail metrics.jsonl and log every generation to W&B incrementally.
+
+    Reads new lines appended to metrics_path + 'l' (e.g. metrics.jsonl) so
+    that fast training runs don't get skipped by a slow poll interval.
+    Falls back to polling metrics.json if the JSONL file doesn't exist.
 
     Args:
         wandb_run: An active wandb.Run instance.
-        metrics_path: Path to the metrics.json file.
+        metrics_path: Path to the metrics.json file (JSONL at same path + 'l').
         max_generations: Stop after this many generations.
-        poll_interval: Seconds between checks.
+        poll_interval: Seconds between checks when no new data.
         max_stale: Max consecutive stale polls before aborting.
         log_keys: If provided, only log these keys. Otherwise log all numeric keys.
 
     Returns:
         The final metrics dict, or None.
     """
+    jsonl_path = Path(str(metrics_path) + "l")  # metrics.json → metrics.jsonl
+    file_pos = 0
     last_gen = -1
     stale_count = 0
     final_metrics = None
-    print(f"📊 Polling metrics every {poll_interval}s...")
+    print(f"📊 Tailing {jsonl_path.name} for incremental gen logging...")
 
     while True:
-        metrics = read_metrics(metrics_path)
-        if metrics and "generation" in metrics:
-            gen = metrics["generation"]
-            if gen > last_gen:
-                last_gen = gen
-                stale_count = 0
-                final_metrics = metrics
+        # --- Try JSONL incremental read first ---
+        new_records = []
+        if jsonl_path.exists():
+            try:
+                with open(jsonl_path) as f:
+                    f.seek(file_pos)
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            try:
+                                new_records.append(json.loads(line))
+                            except json.JSONDecodeError:
+                                pass
+                    file_pos = f.tell()
+            except OSError:
+                pass
 
-                if log_keys:
-                    log_data = {k: metrics.get(k, 0) for k in log_keys}
-                else:
-                    log_data = {k: v for k, v in metrics.items() if isinstance(v, (int, float))}
+        # --- Fall back to snapshot if no JSONL yet ---
+        if not new_records and not jsonl_path.exists():
+            metrics = read_metrics(metrics_path)
+            if metrics and "generation" in metrics and metrics["generation"] > last_gen:
+                new_records = [metrics]
 
-                wandb_run.log(log_data)
+        # --- Log each new record ---
+        for metrics in new_records:
+            gen = metrics.get("generation", -1)
+            if gen <= last_gen:
+                continue
+            last_gen = gen
+            stale_count = 0
+            final_metrics = metrics
 
-                # Print summary line
-                parts = [f"Gen {gen}"]
-                for k in sorted(log_data):
-                    if k != "generation":
-                        v = log_data[k]
-                        parts.append(f"{k}={v:.1f}" if isinstance(v, float) else f"{k}={v}")
-                print(", ".join(parts[:6]))
-
-                if gen >= max_generations - 1:
-                    print(f"\n✓ Training complete! Reached generation {gen}")
-                    break
+            if log_keys:
+                log_data = {k: metrics.get(k, 0) for k in log_keys}
             else:
-                stale_count += 1
-                if stale_count >= max_stale:
-                    print("❌ Training appears stuck")
-                    return final_metrics
+                log_data = {k: v for k, v in metrics.items() if isinstance(v, (int, float))}
+
+            wandb_run.log(log_data)
+
+            parts = [f"Gen {gen}"]
+            for k in sorted(log_data):
+                if k != "generation":
+                    v = log_data[k]
+                    parts.append(f"{k}={v:.1f}" if isinstance(v, float) else f"{k}={v}")
+            print(", ".join(parts[:6]))
+
+        if last_gen >= max_generations - 1:
+            print(f"\n✓ Training complete! Reached generation {last_gen}")
+            break
+
+        if not new_records:
+            stale_count += 1
+            if stale_count >= max_stale:
+                print("❌ Training appears stuck")
+                return final_metrics
 
         time.sleep(poll_interval)
 

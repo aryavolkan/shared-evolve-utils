@@ -257,7 +257,7 @@ def poll_metrics(
     wandb_run,
     metrics_path: Path,
     max_generations: int = 100,
-    poll_interval: float = 5.0,
+    poll_interval: float = 1.0,
     max_stale: int = 60,
     log_keys: Optional[list[str]] = None,
 ) -> Optional[dict]:

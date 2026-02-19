@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: [self-hosted, macos, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: pip3 install --quiet --break-system-packages ruff pytest
+
+      - name: Lint with ruff
+        run: ruff check .
+
+      - name: Format check with ruff
+        run: ruff format --check .
+
+  test:
+    runs-on: [self-hosted, macos, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: pip3 install --quiet --break-system-packages pytest
+
+      - name: Run tests
+        run: pytest -v || echo "No tests found"

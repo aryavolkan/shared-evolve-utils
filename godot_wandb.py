@@ -18,7 +18,6 @@ import time
 import uuid
 from collections.abc import Callable
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -27,14 +26,13 @@ sys.stdout.reconfigure(line_buffering=True)
 sys.stderr.reconfigure(line_buffering=True)
 
 # Default Godot binary
-DEFAULT_GODOT_PATH = os.environ.get(
-    "GODOT_PATH", "/opt/homebrew/bin/godot"
-)
+DEFAULT_GODOT_PATH = os.environ.get("GODOT_PATH", "/opt/homebrew/bin/godot")
 
 
 # ---------------------------------------------------------------------------
 # Path helpers
 # ---------------------------------------------------------------------------
+
 
 def godot_user_dir(app_name: str) -> Path:
     """Return the Godot user data directory for a project on the current platform.
@@ -60,6 +58,7 @@ def godot_user_dir(app_name: str) -> Path:
 # Config / metrics I/O
 # ---------------------------------------------------------------------------
 
+
 def write_config(config: dict, config_path: Path) -> None:
     """Write a JSON config file for Godot to read at startup."""
     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -68,7 +67,7 @@ def write_config(config: dict, config_path: Path) -> None:
     print(f"✓ Config written to {config_path}")
 
 
-def read_metrics(metrics_path: Path) -> Optional[dict]:
+def read_metrics(metrics_path: Path) -> dict | None:
     """Read current metrics from Godot's JSON file. Returns None if unavailable."""
     try:
         if not metrics_path.exists():
@@ -82,6 +81,7 @@ def read_metrics(metrics_path: Path) -> Optional[dict]:
 # ---------------------------------------------------------------------------
 # Per-worker state (sweep workers need isolated paths)
 # ---------------------------------------------------------------------------
+
 
 class SweepWorker:
     """Manages per-worker state for parallel sweep runs.
@@ -133,13 +133,14 @@ class SweepWorker:
 # Godot process management
 # ---------------------------------------------------------------------------
 
+
 def launch_godot(
     project_path: str,
     godot_path: str = DEFAULT_GODOT_PATH,
     visible: bool = False,
     extra_args: list[str] = None,
-    metrics_path: Optional[Path] = None,
-    worker_id: Optional[str] = None,
+    metrics_path: Path | None = None,
+    worker_id: str | None = None,
 ) -> subprocess.Popen:
     """Launch a Godot training process.
 
@@ -200,12 +201,14 @@ def wait_for_metrics(
 # Metrics polling + W&B logging
 # ---------------------------------------------------------------------------
 
+
 def define_step_metric(step: str = "generation") -> None:
     """Configure W&B so all metrics use *step* as their x-axis.
 
     Call once after ``wandb.init()``.
     """
     import wandb
+
     wandb.define_metric(step)
     wandb.define_metric("*", step_metric=step)
 
@@ -230,9 +233,7 @@ def compute_derived_metrics(
     mean_avg = sum(avg_history) / n if avg_history else 0.0
     max_best = max(best_history)
     improvement_rate = (best_history[-1] - best_history[0]) / max(n, 1) if n > 1 else 0.0
-    fitness_std = (
-        sum((x - mean_avg) ** 2 for x in avg_history) / n
-    ) ** 0.5 if avg_history else 0.0
+    fitness_std = (sum((x - mean_avg) ** 2 for x in avg_history) / n) ** 0.5 if avg_history else 0.0
     return {
         "mean_best_fitness": mean_best,
         "mean_avg_fitness": mean_avg,
@@ -266,8 +267,8 @@ def poll_metrics(
     max_generations: int = 100,
     poll_interval: float = 1.0,
     max_stale: int = 60,
-    log_keys: Optional[list[str]] = None,
-) -> Optional[dict]:
+    log_keys: list[str] | None = None,
+) -> dict | None:
     """Tail metrics.jsonl and log every generation to W&B incrementally.
 
     Reads new lines appended to metrics_path + 'l' (e.g. metrics.jsonl) so
@@ -354,7 +355,7 @@ def poll_metrics(
     return final_metrics
 
 
-def log_final_summary(wandb_run, metrics: dict, key_map: Optional[dict[str, str]] = None) -> None:
+def log_final_summary(wandb_run, metrics: dict, key_map: dict[str, str] | None = None) -> None:
     """Write final metric values to wandb.summary with a ``final_`` prefix.
 
     Args:
@@ -379,6 +380,7 @@ def log_final_summary(wandb_run, metrics: dict, key_map: Optional[dict[str, str]
 # ---------------------------------------------------------------------------
 # Sweep management
 # ---------------------------------------------------------------------------
+
 
 def create_or_join_sweep(
     sweep_config: dict,
@@ -413,8 +415,8 @@ def run_sweep_agent(
     sweep_id: str,
     project: str,
     train_fn: Callable[[], None],
-    count: Optional[int] = None,
-    cleanup_fn: Optional[Callable[[], None]] = None,
+    count: int | None = None,
+    cleanup_fn: Callable[[], None] | None = None,
 ) -> None:
     """Run a W&B sweep agent with graceful SIGINT/SIGTERM shutdown.
 
@@ -449,15 +451,16 @@ def run_sweep_agent(
 # High-level: full training session
 # ---------------------------------------------------------------------------
 
+
 def run_training(
     config: dict,
     project_path: str,
     app_name: str,
     wandb_project: str,
-    wandb_tags: Optional[list[str]] = None,
+    wandb_tags: list[str] | None = None,
     visible: bool = False,
     godot_path: str = DEFAULT_GODOT_PATH,
-    log_keys: Optional[list[str]] = None,
+    log_keys: list[str] | None = None,
 ) -> None:
     """Run a complete training session: config → launch → poll → log → cleanup.
 
@@ -485,12 +488,13 @@ def run_training(
     define_step_metric()
 
     max_gens = config.get("max_generations", 100)
-    print(f"\n🎮 Starting training (pop={config.get('population_size', '?')}, "
-          f"gens={max_gens})\n")
+    print(f"\n🎮 Starting training (pop={config.get('population_size', '?')}, gens={max_gens})\n")
 
     write_config(config, config_path)
     process = launch_godot(
-        project_path, godot_path, visible,
+        project_path,
+        godot_path,
+        visible,
         metrics_path=metrics_path,
     )
 

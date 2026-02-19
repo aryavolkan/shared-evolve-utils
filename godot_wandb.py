@@ -7,6 +7,7 @@ Weights & Biases. Used by both Evolve and Chess-Evolve projects.
 """
 
 import json
+import logging
 import math
 import os
 import platform
@@ -15,8 +16,11 @@ import subprocess
 import sys
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 # Force unbuffered output for nohup/sweep compatibility
 sys.stdout.reconfigure(line_buffering=True)
@@ -121,8 +125,8 @@ class SweepWorker:
             try:
                 if path.exists():
                     path.unlink()
-            except OSError:
-                pass
+            except OSError as e:
+                logger.warning("Failed to remove worker file %s: %s", path, e)
 
 
 # ---------------------------------------------------------------------------
@@ -303,8 +307,8 @@ def poll_metrics(
                             except json.JSONDecodeError:
                                 pass
                     file_pos = f.tell()
-            except OSError:
-                pass
+            except OSError as e:
+                logger.warning("Failed to read JSONL metrics from %s: %s", jsonl_path, e)
 
         # --- Fall back to snapshot if no JSONL yet ---
         if not new_records and not jsonl_path.exists():
@@ -350,7 +354,7 @@ def poll_metrics(
     return final_metrics
 
 
-def log_final_summary(wandb_run, metrics: dict, key_map: dict = None) -> None:
+def log_final_summary(wandb_run, metrics: dict, key_map: Optional[dict[str, str]] = None) -> None:
     """Write final metric values to wandb.summary with a ``final_`` prefix.
 
     Args:
@@ -408,9 +412,9 @@ def create_or_join_sweep(
 def run_sweep_agent(
     sweep_id: str,
     project: str,
-    train_fn,
-    count: int = None,
-    cleanup_fn=None,
+    train_fn: Callable[[], None],
+    count: Optional[int] = None,
+    cleanup_fn: Optional[Callable[[], None]] = None,
 ) -> None:
     """Run a W&B sweep agent with graceful SIGINT/SIGTERM shutdown.
 

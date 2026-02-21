@@ -1,3 +1,4 @@
+# ruff: noqa: I001
 """Tests for shared godot_wandb utilities."""
 
 import json

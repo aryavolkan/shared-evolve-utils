@@ -171,10 +171,8 @@ def launch_godot(
     print(f"🚀 Launching: {' '.join(cmd)}")
     return subprocess.Popen(
         cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
 

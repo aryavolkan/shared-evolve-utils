@@ -161,7 +161,7 @@ def launch_godot(
 
     cmd = [godot_path, "--path", project_path]
     if not visible:
-        cmd.extend(["--headless", "--rendering-driver", "dummy"])
+        cmd.extend(["--headless"])
 
     user_args = extra_args or ["--auto-train"]
     if worker_id:

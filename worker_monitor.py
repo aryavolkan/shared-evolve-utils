@@ -28,11 +28,10 @@ import re
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Callable
-
 
 # ---------------------------------------------------------------------------
 # Nanoclaw IPC — common across all projects

@@ -78,6 +78,7 @@ class WorkerConfig:
     sweep_flag: str = "--sweep-id"
     display_name: str = "Worker"
     extra_spawn_args: list[str] = field(default_factory=list)
+    python_bin: str = sys.executable  # Python interpreter used to spawn workers
 
 
 # ---------------------------------------------------------------------------
@@ -455,7 +456,7 @@ def spawn_worker(
 
     cmd = [
         "nohup",
-        sys.executable,
+        cfg.python_bin,
         str(cfg.worker_script),
         "--project", cfg.wandb_project,
         "--count", str(count),
@@ -585,9 +586,11 @@ def monitor_once(
     if fill and sweep_id:
         current = get_running_workers(cfg.worker_script_names)
         while len(current) < max_workers:
-            print(f"\n  Filling slot {len(current) + 1}/{max_workers}...")
-            spawn_worker(cfg, sweep_id=sweep_id, count=count_per_worker)
-            time.sleep(1)
+            slots = max_workers - len(current)
+            print(f"\n  Filling {slots} slot(s) (have {len(current)}/{max_workers})...")
+            for _ in range(slots):
+                spawn_worker(cfg, sweep_id=sweep_id, count=count_per_worker)
+            time.sleep(5)  # Give workers time to start before recounting
             current = get_running_workers(cfg.worker_script_names)
 
     print("\n" + "=" * _WIDTH + "\n")

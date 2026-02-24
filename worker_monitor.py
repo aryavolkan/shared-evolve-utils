@@ -105,8 +105,7 @@ def auto_max_workers(mem_per_worker_gb: float = 0.75, headroom_gb: float = 2.5) 
         current = sum(
             1
             for ln in ps.stdout.splitlines()
-            if any(s in ln for s in ["overnight", "sweep_worker"])
-            and "grep" not in ln
+            if any(s in ln for s in ["overnight", "sweep_worker"]) and "grep" not in ln
         )
     except Exception:
         current = 0
@@ -155,14 +154,16 @@ def get_running_workers(script_names: list[str]) -> list[dict]:
                     or _parse_flag_value(cmd, "--join")
                     or _parse_flag_value(cmd, "--sweep_id")
                 )
-                workers.append({
-                    "pid": int(parts[1]),
-                    "cpu": float(parts[2]),
-                    "mem": float(parts[3]),
-                    "start_time": parts[8],
-                    "command": cmd,
-                    "sweep_id": sweep_id,
-                })
+                workers.append(
+                    {
+                        "pid": int(parts[1]),
+                        "cpu": float(parts[2]),
+                        "mem": float(parts[3]),
+                        "start_time": parts[8],
+                        "command": cmd,
+                        "sweep_id": sweep_id,
+                    }
+                )
             except (ValueError, IndexError):
                 continue
 
@@ -188,13 +189,15 @@ def get_godot_instances() -> list[dict]:
                     if "--worker-id=" in part:
                         worker_id = part.split("=")[1]
                         break
-                instances.append({
-                    "pid": int(parts[1]),
-                    "cpu": float(parts[2]),
-                    "mem": float(parts[3]),
-                    "start_time": parts[8],
-                    "worker_id": worker_id,
-                })
+                instances.append(
+                    {
+                        "pid": int(parts[1]),
+                        "cpu": float(parts[2]),
+                        "mem": float(parts[3]),
+                        "start_time": parts[8],
+                        "worker_id": worker_id,
+                    }
+                )
             except (ValueError, IndexError):
                 continue
 
@@ -213,14 +216,16 @@ def get_active_metrics(godot_data_dir: Path, stale_seconds: int = 300) -> list[d
         if mtime > cutoff:
             try:
                 data = json.loads(mf.read_text())
-                results.append({
-                    "file": mf.name,
-                    "age_seconds": int(time.time() - mtime),
-                    "generation": data.get("generation", "?"),
-                    "best_fitness": data.get("best_fitness", "?"),
-                    "avg_fitness": data.get("avg_fitness", "?"),
-                    "training_complete": data.get("training_complete", False),
-                })
+                results.append(
+                    {
+                        "file": mf.name,
+                        "age_seconds": int(time.time() - mtime),
+                        "generation": data.get("generation", "?"),
+                        "best_fitness": data.get("best_fitness", "?"),
+                        "avg_fitness": data.get("avg_fitness", "?"),
+                        "training_complete": data.get("training_complete", False),
+                    }
+                )
             except Exception:
                 pass
 
@@ -249,10 +254,7 @@ def print_status_table(
     print(f"\n{'=' * _WIDTH}")
     print(f"{'WORKER STATUS':^{_WIDTH}}")
     print("=" * _WIDTH)
-    print(
-        f"{'PID':<8} {'CPU %':<8} {'MEM %':<8} {'START':<10} "
-        f"{'TYPE':<15} {'SWEEP':<12} {'COMMAND/INFO':<39}"
-    )
+    print(f"{'PID':<8} {'CPU %':<8} {'MEM %':<8} {'START':<10} {'TYPE':<15} {'SWEEP':<12} {'COMMAND/INFO':<39}")
     print("-" * _WIDTH)
 
     for w in workers:
@@ -380,11 +382,15 @@ def send_whatsapp_report(message: str, notify_host: str | None = None) -> bool:
     if ipc_dir:
         ts = int(time.time() * 1000)
         msg_file = ipc_dir / f"monitor-{ts}.json"
-        msg_file.write_text(json.dumps({
-            "type": "message",
-            "chatJid": WHATSAPP_JID,
-            "text": message,
-        }))
+        msg_file.write_text(
+            json.dumps(
+                {
+                    "type": "message",
+                    "chatJid": WHATSAPP_JID,
+                    "text": message,
+                }
+            )
+        )
         print(f"  WhatsApp report queued → {msg_file.name}")
         return True
 
@@ -398,9 +404,17 @@ def send_whatsapp_report(message: str, notify_host: str | None = None) -> bool:
     remote_path = None
     for candidate in NANOCLAW_IPC_CANDIDATES:
         check = subprocess.run(
-            ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=5",
-             f"aryasen@{host}", f"test -d {candidate} && echo ok"],
-            capture_output=True, text=True,
+            [
+                "ssh",
+                "-o",
+                "StrictHostKeyChecking=no",
+                "-o",
+                "ConnectTimeout=5",
+                f"aryasen@{host}",
+                f"test -d {candidate} && echo ok",
+            ],
+            capture_output=True,
+            text=True,
         )
         if check.stdout.strip() == "ok":
             remote_path = str(candidate / f"monitor-{ts}.json")
@@ -411,9 +425,10 @@ def send_whatsapp_report(message: str, notify_host: str | None = None) -> bool:
         return False
 
     result = subprocess.run(
-        ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=5",
-         f"aryasen@{host}", f"cat > {remote_path}"],
-        input=payload, text=True, capture_output=True,
+        ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=5", f"aryasen@{host}", f"cat > {remote_path}"],
+        input=payload,
+        text=True,
+        capture_output=True,
     )
     if result.returncode == 0:
         print(f"  WhatsApp report queued on {host} → {Path(remote_path).name}")
@@ -457,8 +472,10 @@ def spawn_worker(
         "nohup",
         cfg.python_bin,
         str(cfg.worker_script),
-        "--project", cfg.wandb_project,
-        "--count", str(count),
+        "--project",
+        cfg.wandb_project,
+        "--count",
+        str(count),
         *cfg.extra_spawn_args,
     ]
     if sweep_id:
@@ -492,6 +509,7 @@ def ensure_sweep_id(
     if create_sweep_fn:
         return create_sweep_fn()
     from godot_wandb import create_or_join_sweep
+
     return create_or_join_sweep({}, cfg.wandb_project)
 
 
@@ -555,6 +573,7 @@ def monitor_once(
 
     if as_json:
         import json as _json
+
         print(_json.dumps(summary, indent=2))
         return summary
 
@@ -595,9 +614,7 @@ def monitor_once(
     print("\n" + "=" * _WIDTH + "\n")
 
     if notify:
-        report = build_whatsapp_report(
-            workers, godot_instances, metrics, cfg.display_name, sweep_id, spawned
-        )
+        report = build_whatsapp_report(workers, godot_instances, metrics, cfg.display_name, sweep_id, spawned)
         send_whatsapp_report(report, notify_host=notify_host)
 
     return summary
@@ -610,19 +627,20 @@ def monitor_once(
 
 def add_monitor_args(parser) -> None:  # type: ignore[type-arg]
     """Add standard monitor CLI args to an argparse.ArgumentParser."""
-    parser.add_argument("--auto-spawn", action="store_true",
-                        help="Spawn a worker if utilization is low")
-    parser.add_argument("--fill", action="store_true",
-                        help="Spawn until max-workers is reached")
-    parser.add_argument("--max-workers", type=int, default=None,
-                        help="Max concurrent workers (auto-detected if omitted)")
-    parser.add_argument("--sweep-id", type=str, default=None,
-                        help="W&B sweep ID for spawned workers")
-    parser.add_argument("--cpu-threshold", type=float, default=DEFAULT_CPU_THRESHOLD,
-                        help=f"CPU %% threshold for spawning (default: {DEFAULT_CPU_THRESHOLD})")
-    parser.add_argument("--notify", action="store_true",
-                        help="Send status report via WhatsApp/NanoClaw")
-    parser.add_argument("--notify-host", type=str, default=None,
-                        help="SSH host running NanoClaw (if IPC not local)")
-    parser.add_argument("--json", action="store_true", dest="as_json",
-                        help="Output JSON instead of human-readable table")
+    parser.add_argument("--auto-spawn", action="store_true", help="Spawn a worker if utilization is low")
+    parser.add_argument("--fill", action="store_true", help="Spawn until max-workers is reached")
+    parser.add_argument(
+        "--max-workers", type=int, default=None, help="Max concurrent workers (auto-detected if omitted)"
+    )
+    parser.add_argument("--sweep-id", type=str, default=None, help="W&B sweep ID for spawned workers")
+    parser.add_argument(
+        "--cpu-threshold",
+        type=float,
+        default=DEFAULT_CPU_THRESHOLD,
+        help=f"CPU %% threshold for spawning (default: {DEFAULT_CPU_THRESHOLD})",
+    )
+    parser.add_argument("--notify", action="store_true", help="Send status report via WhatsApp/NanoClaw")
+    parser.add_argument("--notify-host", type=str, default=None, help="SSH host running NanoClaw (if IPC not local)")
+    parser.add_argument(
+        "--json", action="store_true", dest="as_json", help="Output JSON instead of human-readable table"
+    )

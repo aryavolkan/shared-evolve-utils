@@ -266,6 +266,7 @@ def poll_metrics(
     poll_interval: float = 1.0,
     max_stale: int = 60,
     log_keys: list[str] | None = None,
+    metric_transform: Callable[[dict], dict] | None = None,
 ) -> dict | None:
     """Tail metrics.jsonl and log every generation to W&B incrementally.
 
@@ -280,6 +281,9 @@ def poll_metrics(
         poll_interval: Seconds between checks when no new data.
         max_stale: Max consecutive stale polls before aborting.
         log_keys: If provided, only log these keys. Otherwise log all numeric keys.
+        metric_transform: If provided, called with log_data dict before logging
+            to W&B. Can add derived metrics (e.g. combined_best). Must return
+            the (possibly modified) dict.
 
     Returns:
         The final metrics dict, or None.
@@ -328,6 +332,9 @@ def poll_metrics(
                 log_data = {k: metrics.get(k, 0) for k in log_keys}
             else:
                 log_data = {k: v for k, v in metrics.items() if isinstance(v, (int, float))}
+
+            if metric_transform:
+                log_data = metric_transform(log_data)
 
             wandb_run.log(log_data)
 
